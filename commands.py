@@ -36,6 +36,8 @@ Recuerda que estos datos se van a remitir de manera automática al formulario we
 
 La recogida de información de asistencia presencial en las aulas de EINA por parte de la Universidad se realiza exclusivamente en el marco de las medidas Anti-Covid19. La información será utilizada exlusivamente en el caso de que resulte necesario localizar contactos con pacientes covid confirmados. A los 14 días toda la información será eliminada.
 
+Para usarlo, primero tienes que suscribir tu identificador (o identificadores) que quieres utilizar con el comando /sub. Después, puedes registrar tu asistencia a un aula determinada mediante el comando /assist <CODIGO_CLASE>. Para saber el código de la clase, puedes consultar /class. Para más información, consulta /help.
+
 """)
 
 @with_touched_chat
