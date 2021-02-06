@@ -3,7 +3,7 @@ import telegram
 from models import Subscription
 from util import with_touched_chat, escape_markdown
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 USERID_CONTROL = [6128221]
 
 from classes import CLASS_LIST
@@ -32,7 +32,7 @@ Hola!
 
 Este BOT sirve para poder facilitar la recogida de asistencia a clase en el marco de las medidas Anti-COVID19 en las aulas de la Escuela de Ingeniería y Arquitectura de la Universidad de Zaragoza. Tus datos recogidos como identificadores mediante el uso de este bot (NIA, DNI, correo electrónico o número de teléfono) y almacenados en el servidor del BOT, se usarán para enviarlos de manera automática a las aulas que indiques. Eventualmente, estos datos pueden ser procesados con fines meramente estadísticos acerca del uso del BOT (datos considerados de legítimo interés para propósitos de investigación científica por el controlador, art. 6(1)(f) GDPR).
 
-Recuerda que estos datos se van a remitir de manera automática al formulario web de la Universidad de Zaragoza disponible en https://eina.unizar.es/asistencia-aula. Por tanto, usando este BOT, estás aceptando que se recojan tu datos de asistencia dentro del marco de las medidas Anti-COVID19.
+Recuerda que estos datos se van a remitir de manera automática al formulario web de la Universidad de Zaragoza disponible en https://eina.unizar.es/asistencia-aula. Por tanto, usando este BOT, estás aceptando que se recojan tus datos de asistencia dentro del marco de las medidas Anti-COVID19.
 
 La recogida de información de asistencia presencial en las aulas de EINA por parte de la Universidad se realiza exclusivamente en el marco de las medidas Anti-Covid19. La información será utilizada exlusivamente en el caso de que resulte necesario localizar contactos con pacientes covid confirmados. A los 14 días toda la información será eliminada.
 
@@ -206,13 +206,70 @@ def cmd_source(bot, update, chat=None):
                         "Adaptado por parte del grupo DisCo de la Universidad de Zaragoza, a partir del código original de:"
                     "https://github.com/franciscod/telegram-twitter-forwarder-bot")
 
+import requests
+URL = 'http://eina.unizar.es/asistencia-aula?aula='
+
 @with_touched_chat
 def cmd_assist(bot, update, args, chat=None):
     if DEBUG_MODE:
         if (chat.chat_id not in USERID_CONTROL):
             bot.reply(update, random_string())
             return
-    #import pdb; pdb.set_trace();
+    # check no spaces in args
+    if ' ' in args or len(args) == 0:
+        bot.reply(update, "Verifica el aula dada, no debe de ser nula o contener espacios!")
+        return
+    _class = args[0]
+
+    subscriptions = list(Subscription.select().where(Subscription.tg_chat == chat))
+
+    if len(subscriptions) == 0:
+        bot.reply(update, "Antes de usar este comando, tienes que definir algún identificador!")
+        return
+    
+    for subs in subscriptions:
+        # create thread to handle the new POST request
+        try:
+            thread = threading.Thread(target=make_new_POST, args=(bot, update, subs.u_id, _class, ))
+            thread.start()
+        except:
+            bot.reply(update, "Error intentando crear un hilo para la asistencia de {} :(".format(subs))
+
+import threading
+import time
+def make_new_POST(bot, update, u_id, _class):
+    try:
+        # sleep for a random time first
+        sleeptime = random.randint(0, 10)
+        bot.reply(update, "Durmiendo {} segundos (registro de \"{}\" en \"{}) ...".format(sleeptime, u_id, _class))
+        time.sleep(sleeptime)
+        _return = make_request(u_id, _class)
+        bot.reply(update, "Asistencia de \"{}\" a \"{}\" registrada correctamente".format(u_id, _class))
+    except Exception as e:
+        bot.reply(update, "ERROR! {0}".format(e.args))
+
+def make_request(user_id, _class):
+    # aight, time to go. Build the request now
+    payload = {
+        "submitted[nip]": user_id,
+        "submitted[consentimiento][si]": "si",
+        "details[sid]": "",
+        "details[page_num]": "1",
+        "details[page_count]": "1",
+        "details[finished]": "0",
+        "form_build_id": "form-_1alOlxKaiBugV4vu8RQ30zR0Qe9JL1zoDO3raHuPK8",
+        "form_id": "webform_client_form_3589",
+        "op": "Enviar",
+    }
+
+    # send and check result, reporting to the user appropriately
+    session = requests.session()
+    request = session.post(URL + _class, data=payload)
+
+    if not request.ok:
+        raise Exception("Petición de {} a {} ha devuelto error (código de error {})".format(user_id, _class, request.status_code))
+        
+    
 
 @with_touched_chat
 def cmd_class(bot, update, chat=None):
