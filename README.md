@@ -60,7 +60,7 @@ Puedes configurar el tiempo de ejecución como quieras.
 
 ## Texto legal
 
-(texto legal en cumplimiento del RGPD y de la LO3/2018)
+(texto legal en cumplimiento del RGPD y de la LO 3/2018)
 
 Tus datos recogidos como identificadores mediante el uso de este bot (NIA, DNI, correo electrónico o número de teléfono) y almacenados en el servidor del BOT, se usarán para enviarlos de manera automática a las aulas que indiques. Eventualmente, estos datos pueden ser procesados con fines meramente estadísticos acerca del uso del BOT (datos considerados de legítimo interés para propósitos de investigación científica por el controlador, art. 6(1)(f) GDPR).
 
