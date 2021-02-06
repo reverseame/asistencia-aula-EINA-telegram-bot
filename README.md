@@ -11,8 +11,11 @@ Sí, sólo tienes que buscar a [@AsistenciaAulaEINA_bot](http://t.me/AsistenciaA
 Después:
 1. Suscribe tu identificador (o identificadores) que quieres utilizar con el comando `/sub`. El identificador más habitual es tu NIA o NIP.
 2. Registra tu asistencia a un aula determinada mediante el comando `/assist CODIGO_CLASE`. Para saber el código de la clase, puedes consultar `/class` o escanear el QR de las puertas del aula de interés y observar lo que aparece al final de la URL (antecedido por `aula=`).
+3. Automáticamente, el bot registrará todos los identificadores definidos de tu usuario en el aula indicada a través del formulario de la EINA habilitado a tal efecto en [https://eina.unizar.es/asistencia-aula](https://eina.unizar.es/asistencia-aula). Para cada identificador esperará unos segundos y realizará la petición, informándote del resultado.
 
 Para más información de los comandos disponibles, consulta `/help`.
+
+Para sacar el máximo provecho de este bot, puedes dejar mensajes programados a tus horas de inicio de clases presenciales en la conversación de Telegram.
 
 ## Requisitos
 
