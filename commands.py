@@ -251,6 +251,8 @@ def make_new_POST(bot, update, u_id, _class):
         bot.reply(update, "Durmiendo {} segundos (registro de \"{}\" en \"{}\") ...".format(sleeptime, u_id, _class))
         time.sleep(sleeptime)
         _return = make_request(u_id, _class)
+        if not "Gracias por tu colaboración" in _return.text:
+            raise Exception("Petición de {} a {} incorrecta!".format(user_id, _class))
 
         bot.reply(update, "Asistencia de \"{}\" a \"{}\" registrada correctamente".format(u_id, _class))
     except Exception as e:
