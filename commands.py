@@ -248,7 +248,7 @@ def make_new_POST(bot, update, u_id, _class):
     try:
         # sleep for a random time first
         sleeptime = random.randint(1, 10)
-        bot.reply(update, "Durmiendo {} segundos (registro de \"{}\" en \"{}) ...".format(sleeptime, u_id, _class))
+        bot.reply(update, "Durmiendo {} segundos (registro de \"{}\" en \"{}\") ...".format(sleeptime, u_id, _class))
         time.sleep(sleeptime)
         _return = make_request(u_id, _class)
 
