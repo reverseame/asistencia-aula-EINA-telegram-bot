@@ -30,7 +30,7 @@ def cmd_start(bot, update, chat=None):
             update, """
 Hola! 
 
-Este BOT sirve para poder facilitar la recogida de asistencia a clase en el marco de las medidas Anti-COVID19 en las aulas de la Escuela de Ingeniería y Arquitectura de la Universidad de Zaragoza. Para usarlo, primero tienes que suscribir tu identificador (o identificadores) que quieres utilizar con el comando /sub. El identificador más habitual es tu NIA o NIP. Después, puedes registrar tu asistencia a un aula determinada mediante el comando /assist CODIGO_CLASE. Para saber el código de la clase, puedes consultar /class. Para más información, consulta /help.
+Este BOT (no oficial) sirve para facilitar la recogida de asistencia a clase en el marco de las medidas Anti-COVID19 en las aulas de la Escuela de Ingeniería y Arquitectura de la Universidad de Zaragoza. Para usarlo, primero tienes que suscribir tu identificador (o identificadores) que quieres utilizar con el comando /sub. El identificador más habitual es tu NIA o NIP. Después, puedes registrar tu asistencia a un aula determinada mediante el comando /assist CODIGO_CLASE. Para saber el código de la clase, puedes consultar /class. Para más información, consulta /help.
 
 TEXTO LEGAL (cumplimiento RGPD y LO 3/2018)
 
@@ -210,7 +210,7 @@ def cmd_source(bot, update, chat=None):
                     "https://github.com/franciscod/telegram-twitter-forwarder-bot")
 
 import requests
-URL = 'http://eina.unizar.es/asistencia-aula?aula='
+URL = 'https://eina.unizar.es/asistencia-aula?aula='
 
 @with_touched_chat
 def cmd_assist(bot, update, args, chat=None):
