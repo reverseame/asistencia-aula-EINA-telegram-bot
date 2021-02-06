@@ -30,15 +30,15 @@ def cmd_start(bot, update, chat=None):
             update, """
 Hola! 
 
-Este BOT sirve para poder facilitar la recogida de asistencia a clase en el marco de las medidas Anti-COVID19 en las aulas de la Escuela de Ingeniería y Arquitectura de la Universidad de Zaragoza. Para usarlo, primero tienes que suscribir tu identificador (o identificadores) que quieres utilizar con el comando /sub. El identificador más habitual es tu NIA o NIP. Después, puedes registrar tu asistencia a un aula determinada mediante el comando /assist <CODIGO_CLASE>. Para saber el código de la clase, puedes consultar /class. Para más información, consulta /help.
+Este BOT sirve para poder facilitar la recogida de asistencia a clase en el marco de las medidas Anti-COVID19 en las aulas de la Escuela de Ingeniería y Arquitectura de la Universidad de Zaragoza. Para usarlo, primero tienes que suscribir tu identificador (o identificadores) que quieres utilizar con el comando /sub. El identificador más habitual es tu NIA o NIP. Después, puedes registrar tu asistencia a un aula determinada mediante el comando /assist CODIGO_CLASE. Para saber el código de la clase, puedes consultar /class. Para más información, consulta /help.
 
-**TEXTO LEGAL** (cumplimiento RGPD y LO 3/2018)
+TEXTO LEGAL (cumplimiento RGPD y LO 3/2018)
 
 Tus datos recogidos como identificadores mediante el uso de este bot (NIA, DNI, correo electrónico o número de teléfono) y almacenados en el servidor del BOT, se usarán para enviarlos de manera automática a las aulas que indiques. Eventualmente, estos datos pueden ser procesados con fines meramente estadísticos acerca del uso del BOT (datos considerados de legítimo interés para propósitos de investigación científica por el controlador, art. 6(1)(f) GDPR).
 
 Recuerda que estos datos se van a remitir de manera automática al formulario web de la Universidad de Zaragoza disponible en https://eina.unizar.es/asistencia-aula. Por tanto, usando este BOT, estás aceptando que se recojan tus datos de asistencia dentro del marco de las medidas Anti-COVID19.
 
-La recogida de información de asistencia presencial en las aulas de EINA por parte de la Universidad se realiza exclusivamente en el marco de las medidas Anti-Covid19. La información será utilizada exlusivamente en el caso de que resulte necesario localizar contactos con pacientes covid confirmados. A los 14 días toda la información será eliminada.
+La recogida de información de asistencia presencial en las aulas de EINA por parte de la Universidad se realiza exclusivamente en el marco de las medidas Anti-Covid19. La información será utilizada exclusivamente en el caso de que resulte necesario localizar contactos con pacientes covid confirmados. A los 14 días toda la información será eliminada.
 """)
 
 @with_touched_chat
@@ -52,7 +52,7 @@ Hola! Este bot te permite introducir tu asistencia a clase en la EINA en el marc
 
 Lista de comandos soportados:
 - /sub - subscribir un nuevo identificador (NIA, o cualquier otro dato que permitan tu identificación personal -- DNI, correo electrónico o número de teléfono)
-- /unsub - de-suscribir un identificador
+- /unsub - desuscribir un identificador
 - /list  - listar los identificadores actuales
 - /wipe - eliminar toda tu información (incluidos identificadores definidos) almacenada en el servidor
 - /assist - asistir a un aula determinada (realiza la petición al formulario web de la EINA)
@@ -206,7 +206,7 @@ def cmd_source(bot, update, chat=None):
     bot.reply(update, "Este bot es Software Libre bajo licencia GPLv3. "
                         "Código disponible en: "
                         "https://github.com/reverseame/asistencia-aula-EINA-telegram-bot\n"
-                        "Adaptado por parte del grupo DisCo de la Universidad de Zaragoza, a partir del código original de:"
+                        "Adaptado por parte del grupo DisCo de la Universidad de Zaragoza, a partir del código original de: "
                     "https://github.com/franciscod/telegram-twitter-forwarder-bot")
 
 import requests
@@ -219,9 +219,13 @@ def cmd_assist(bot, update, args, chat=None):
             bot.reply(update, random_string())
             return
     # check no spaces in args
-    if ' ' in args or len(args) == 0:
+    if ' ' in args or len(args) < 0:
         bot.reply(update, "Verifica el aula dada, no debe de ser nula o contener espacios!")
         return
+    elif len(args) > 1:
+        bot.reply(update, "Sólo se permite un aula!")
+        return
+
     _class = args[0]
 
     subscriptions = list(Subscription.select().where(Subscription.tg_chat == chat))
@@ -243,10 +247,11 @@ import time
 def make_new_POST(bot, update, u_id, _class):
     try:
         # sleep for a random time first
-        sleeptime = random.randint(0, 10)
+        sleeptime = random.randint(1, 10)
         bot.reply(update, "Durmiendo {} segundos (registro de \"{}\" en \"{}) ...".format(sleeptime, u_id, _class))
         time.sleep(sleeptime)
         _return = make_request(u_id, _class)
+
         bot.reply(update, "Asistencia de \"{}\" a \"{}\" registrada correctamente".format(u_id, _class))
     except Exception as e:
         bot.reply(update, "ERROR! {0}".format(e.args))
@@ -268,10 +273,11 @@ def make_request(user_id, _class):
     # send and check result, reporting to the user appropriately
     session = requests.session()
     request = session.post(URL + _class, data=payload)
-
+    
     if not request.ok:
         raise Exception("Petición de {} a {} ha devuelto error (código de error {})".format(user_id, _class, request.status_code))
-        
+    
+    return request
     
 
 @with_touched_chat
