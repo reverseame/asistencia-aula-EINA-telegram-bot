@@ -36,6 +36,8 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('unsub', cmd_unsub, pass_args=True))
     dispatcher.add_handler(CommandHandler('list', cmd_list))
     dispatcher.add_handler(CommandHandler('wipe', cmd_wipe))
+    dispatcher.add_handler(CommandHandler('assist', cmd_assist, pass_args=True))
+    dispatcher.add_handler(CommandHandler('class', cmd_class))
     dispatcher.add_handler(CommandHandler('source', cmd_source))
     dispatcher.add_handler(MessageHandler([Filters.text], handle_chat))
 

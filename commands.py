@@ -6,6 +6,8 @@ from util import with_touched_chat, escape_markdown
 DEBUG_MODE = True
 USERID_CONTROL = [6128221]
 
+from classes import CLASS_LIST
+
 import random
 MASTER_PHRASES = ["Well, this is embarrasing. I only obey my master :_(", "How you dare! I'll tell my boyfriend!", "неподдерживаемая функция"]
 
@@ -38,7 +40,6 @@ La recogida de información de asistencia presencial en las aulas de EINA por pa
 
 @with_touched_chat
 def cmd_help(bot, update, chat=None):
-    #import pdb; pdb.set_trace();
     if DEBUG_MODE:
         if (chat.chat_id not in USERID_CONTROL):
             bot.reply(update, random_string())
@@ -50,7 +51,9 @@ Lista de comandos soportados:
 - /sub - subscribir un nuevo identificador (NIA, o cualquier otro dato que permitan tu identificación personal -- DNI, correo electrónico o número de teléfono)
 - /unsub - de-suscribir un identificador
 - /list  - listar los identificadores actuales
-- /wipe - elimina toda tu información (incluidos identificadores definidos) almacenada en el servidor
+- /wipe - eliminar toda tu información (incluidos identificadores definidos) almacenada en el servidor
+- /assist - asistir a un aula determinada (realiza la petición al formulario web de la EINA)
+- /class - listar los código de aulas
 - /source - información del código fuente
 - /help - muestra el mensaje de ayuda
 
@@ -203,6 +206,22 @@ def cmd_source(bot, update, chat=None):
                         "Adaptado por parte del grupo DisCo de la Universidad de Zaragoza, a partir del código original de:"
                     "https://github.com/franciscod/telegram-twitter-forwarder-bot")
 
+@with_touched_chat
+def cmd_assist(bot, update, args, chat=None):
+    if DEBUG_MODE:
+        if (chat.chat_id not in USERID_CONTROL):
+            bot.reply(update, random_string())
+            return
+    #import pdb; pdb.set_trace();
+
+@with_touched_chat
+def cmd_class(bot, update, chat=None):
+    if DEBUG_MODE:
+        if (chat.chat_id not in USERID_CONTROL):
+            bot.reply(update, random_string())
+            return
+    bot.reply(update, "Lista (no exhaustiva) de código de aulas:\n" +  CLASS_LIST + 
+                        "\nSi el aula donde vas a asistir no está en esta lista, para conocerla puedes escanear el QR de la puerta y observar el enlace que contiene. El código del aula aparece al final de la URL (parámetro \"aula\")")
 
 @with_touched_chat
 def handle_chat(bot, update, chat=None):
