@@ -177,14 +177,10 @@ def cmd_list(bot, update, chat=None):
     if len(subscriptions) == 0:
         return bot.reply(update, 'No has añadido ningún identificador todavía. Añade un identificador con /sub identificador')
 
-    subs = ['']
-    for sub in subscriptions:
-        subs.append(sub.u_id)
-
     bot.reply(
         update,
         "Tienes definidos los siguientes identificadores:\n" +
-        "\n - ".join(subs) + "\n\nPuedes eliminar cualquiera de ellos con /unsub identificador")
+        "\n - ".join((s.u_id for s in subscriptions)) + "\n\nPuedes eliminar cualquiera de ellos con /unsub identificador")
 
 
 @with_touched_chat
