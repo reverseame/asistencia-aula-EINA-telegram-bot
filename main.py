@@ -38,6 +38,8 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('wipe', cmd_wipe))
     dispatcher.add_handler(CommandHandler('assist', cmd_assist, pass_args=True))
     dispatcher.add_handler(CommandHandler('class', cmd_class))
+    dispatcher.add_handler(CommandHandler('history', cmd_history))
+    dispatcher.add_handler(CommandHandler('legal', cmd_legal))
     dispatcher.add_handler(CommandHandler('source', cmd_source))
     dispatcher.add_handler(MessageHandler([Filters.text], handle_chat))
 

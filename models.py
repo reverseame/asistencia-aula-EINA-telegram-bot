@@ -22,10 +22,14 @@ class Subscription(Model):
     tg_chat = ForeignKeyField(TelegramChat, related_name="subscriptions")
     u_id = TextField()
     known_at = DateTimeField(default=datetime.datetime.now)
-    last_tweet_id = BigIntegerField(default=0)
+
+class Room(Model):
+    tg_chat = ForeignKeyField(TelegramChat, related_name="rooms")
+    room_name = TextField()
+    last_time = DateTimeField(default=datetime.datetime.now)
 
 # Create tables
-for t in (TelegramChat, Subscription):
+for t in (TelegramChat, Subscription, Room):
     t.create_table(fail_silently=True)
 
 

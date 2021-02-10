@@ -1,6 +1,7 @@
 import telegram
+import datetime
 
-from models import Subscription
+from models import Subscription, Room
 from util import with_touched_chat, escape_markdown
 
 DEBUG_MODE = False
@@ -18,6 +19,24 @@ def random_string():
 def cmd_ping(bot, update):
     bot.reply(update, 'Pong!')
 
+LEGAL_TEXT="""
+TEXTO LEGAL (cumplimiento RGPD y LO 3/2018)
+
+Tus datos recogidos como identificadores mediante el uso de este bot (NIA, DNI, correo electrónico o número de teléfono) y almacenados en el servidor del BOT, se usarán para enviarlos de manera automática a las aulas que indiques. Eventualmente, estos datos pueden ser procesados con fines meramente estadísticos acerca del uso del BOT (datos considerados de legítimo interés para propósitos de investigación científica por el controlador, art. 6(1)(f) GDPR).
+
+Recuerda que estos datos se van a remitir de manera automática al formulario web de la Universidad de Zaragoza disponible en https://eina.unizar.es/asistencia-aula. Por tanto, usando este BOT, estás aceptando que se recojan tus datos de asistencia dentro del marco de las medidas Anti-COVID19.
+
+La recogida de información de asistencia presencial en las aulas de EINA por parte de la Universidad se realiza exclusivamente en el marco de las medidas Anti-Covid19. La información será utilizada exclusivamente en el caso de que resulte necesario localizar contactos con pacientes covid confirmados. A los 14 días toda la información será eliminada.
+"""
+
+def cmd_legal(bot, update, chat=None):
+    if DEBUG_MODE:
+        if (chat.chat_id not in USERID_CONTROL):
+            bot.reply(update, random_string())
+            return
+
+    bot.reply(update, LEGAL_TEXT)
+    return
 
 @with_touched_chat
 def cmd_start(bot, update, chat=None):
@@ -31,15 +50,7 @@ def cmd_start(bot, update, chat=None):
 Hola! 
 
 Este BOT (no oficial) sirve para facilitar la recogida de asistencia a clase en el marco de las medidas Anti-COVID19 en las aulas de la Escuela de Ingeniería y Arquitectura de la Universidad de Zaragoza. Para usarlo, primero tienes que suscribir tu identificador (o identificadores) que quieres utilizar con el comando /sub. El identificador más habitual es tu NIA o NIP. Después, puedes registrar tu asistencia a un aula determinada mediante el comando /assist CODIGO_CLASE. Para saber el código de la clase, puedes consultar /class. Para más información, consulta /help.
-
-TEXTO LEGAL (cumplimiento RGPD y LO 3/2018)
-
-Tus datos recogidos como identificadores mediante el uso de este bot (NIA, DNI, correo electrónico o número de teléfono) y almacenados en el servidor del BOT, se usarán para enviarlos de manera automática a las aulas que indiques. Eventualmente, estos datos pueden ser procesados con fines meramente estadísticos acerca del uso del BOT (datos considerados de legítimo interés para propósitos de investigación científica por el controlador, art. 6(1)(f) GDPR).
-
-Recuerda que estos datos se van a remitir de manera automática al formulario web de la Universidad de Zaragoza disponible en https://eina.unizar.es/asistencia-aula. Por tanto, usando este BOT, estás aceptando que se recojan tus datos de asistencia dentro del marco de las medidas Anti-COVID19.
-
-La recogida de información de asistencia presencial en las aulas de EINA por parte de la Universidad se realiza exclusivamente en el marco de las medidas Anti-Covid19. La información será utilizada exclusivamente en el caso de que resulte necesario localizar contactos con pacientes covid confirmados. A los 14 días toda la información será eliminada.
-""")
+""" + LEGAL_TEXT)
 
 @with_touched_chat
 def cmd_help(bot, update, chat=None):
@@ -56,8 +67,10 @@ Lista de comandos soportados:
 - /list  - listar los identificadores actuales
 - /wipe - eliminar toda tu información (incluidos identificadores definidos) almacenada en el servidor
 - /assist - asistir a un aula determinada (realiza la petición al formulario web de la EINA)
-- /class - listar los código de aulas
+- /class - listar los códigos de aulas
+- /history - listar tu histórico de aulas donde has registrado asistencia
 - /source - información del código fuente
+- /legal - muestra el texto legal (cumplimiento RGPD y LO 3/2018)
 - /help - muestra el mensaje de ayuda
 
 Este bot es código abierto (licencia GNU/GPLv3), lee /source para más información!
@@ -195,6 +208,17 @@ def cmd_wipe(bot, update, chat=None):
                     " Cuando quieras nos volvemos a ver. Hasta la próxima!")
     chat.delete_instance(recursive=True)
 
+@with_touched_chat
+def cmd_history(bot, update, chat=None):
+    if not DEBUG_MODE:
+        if (chat.chat_id not in USERID_CONTROL):
+            bot.reply(update, random_string())
+            return
+
+    # get the history of this user and return it
+    _classes = list(Room.select().where(Room.tg_chat == chat))
+    bot.reply(update, "Lista de últimas asistencias registradas:\n" + "\n".join(" - {} ({})".format(_class.room_name, _class.last_time.strftime('%H:%M, %d/%m/%Y')) for _class in _classes))
+    return
 
 @with_touched_chat
 def cmd_source(bot, update, chat=None):
@@ -219,7 +243,7 @@ def cmd_assist(bot, update, args, chat=None):
             bot.reply(update, random_string())
             return
     # check no spaces in args
-    if ' ' in args or len(args) < 0:
+    if ' ' in args or len(args) <= 0:
         bot.reply(update, "Verifica el aula dada, no debe de ser nula o contener espacios!")
         return
     elif len(args) > 1:
@@ -233,14 +257,23 @@ def cmd_assist(bot, update, args, chat=None):
     if len(subscriptions) == 0:
         bot.reply(update, "Antes de usar este comando, tienes que definir algún identificador!")
         return
-    
+   
+    # store the class passed as argument, if not repeated
+    if Room.select().where(Room.tg_chat == chat, Room.room_name == _class).count() == 0:
+        Room.create(tg_chat = chat, room_name = _class)
+        bot.reply(update, "Nueva clase \"{}\" almacenada en tu histórico".format(_class))
+    else:
+        # silent update of last time of assistance to this room
+        query = (Room.update(last_time= datetime.datetime.now()).where(Room.tg_chat == chat, Room.room_name == _class))
+        query.execute()
+
     for subs in subscriptions:
         # create thread to handle the new POST request
         try:
             thread = threading.Thread(target=make_new_POST, args=(bot, update, subs.u_id, _class, ))
             thread.start()
         except:
-            bot.reply(update, "Error intentando crear un hilo para la asistencia de {} :(".format(subs))
+            bot.reply(update, "Error intentando crear un hilo para la asistencia de \"{}\" :(".format(subs))
 
 import threading
 import time
