@@ -206,7 +206,7 @@ def cmd_wipe(bot, update, chat=None):
 
 @with_touched_chat
 def cmd_history(bot, update, chat=None):
-    if not DEBUG_MODE:
+    if DEBUG_MODE:
         if (chat.chat_id not in USERID_CONTROL):
             bot.reply(update, random_string())
             return
