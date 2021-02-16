@@ -4,8 +4,12 @@ import datetime
 from models import Subscription, Room
 from util import with_touched_chat, escape_markdown
 
+# for debug mode
 DEBUG_MODE = False
-USERID_CONTROL = [6128221]
+USERID_CONTROL = [6128221] # Telegram user with privileges
+
+# max of history records to be stored
+MAX_HISTORY = 5
 
 from classes import CLASS_LIST
 
@@ -68,7 +72,7 @@ Lista de comandos soportados:
 - /wipe - eliminar toda tu información (incluidos identificadores definidos) almacenada en el servidor
 - /assist - asistir a un aula determinada (realiza la petición al formulario web de la EINA)
 - /class - listar los códigos de aulas
-- /history - listar tu histórico de aulas donde has registrado asistencia
+- /history - listar tu histórico (5 últimas) de aulas donde has registrado asistencia
 - /source - información del código fuente
 - /legal - muestra el texto legal (cumplimiento RGPD y LO 3/2018)
 - /help - muestra el mensaje de ayuda
@@ -212,8 +216,8 @@ def cmd_history(bot, update, chat=None):
             return
 
     # get the history of this user and return it
-    _classes = list(Room.select().where(Room.tg_chat == chat))
-    bot.reply(update, "Lista de últimas asistencias registradas:\n" + "\n".join(" - {} ({})".format(_class.room_name, _class.last_time.strftime('%H:%M, %d/%m/%Y')) for _class in _classes))
+    _classes = list(Room.select().where(Room.tg_chat == chat).order_by(Room.last_time.desc()))
+    bot.reply(update, "Lista de últimas asistencias registradas:\n" + "\n".join(" - {} ({})".format(_class.last_time.strftime('%a %d %b, %Y, %H:%M'), _class.room_name) for _class in _classes))
     return
 
 @with_touched_chat
@@ -255,13 +259,15 @@ def cmd_assist(bot, update, args, chat=None):
         return
    
     # store the class passed as argument, if not repeated
-    if Room.select().where(Room.tg_chat == chat, Room.room_name == _class).count() == 0:
-        Room.create(tg_chat = chat, room_name = _class)
-        bot.reply(update, "Nueva clase \"{}\" almacenada en tu histórico".format(_class))
-    else:
-        # silent update of last time of assistance to this room
-        query = (Room.update(last_time= datetime.datetime.now()).where(Room.tg_chat == chat, Room.room_name == _class))
-        query.execute()
+    if Room.select().where(Room.tg_chat == chat).count() >= MAX_HISTORY:
+        ordered_rooms = list(Room.select().where(Room.tg_chat == chat).order_by(Room.last_time.asc()))
+        # get oldest items, leaving newest (MAX_HISTORY - 1) items
+        ordered_rooms = ordered_rooms[0:-(MAX_HISTORY - 1)]
+        for _room in ordered_rooms:
+            _room.delete_instance() # delete it
+    
+    # silently insert the new item into the DB
+    Room.create(tg_chat = chat, room_name = _class)
 
     for subs in subscriptions:
         # create thread to handle the new POST request
@@ -318,7 +324,7 @@ def cmd_class(bot, update, chat=None):
             bot.reply(update, random_string())
             return
     bot.reply(update, "Lista (no exhaustiva) de código de aulas:\n" +  CLASS_LIST + 
-                        "\nSi el aula donde vas a asistir no está en esta lista, para conocerla puedes escanear el QR de la puerta y observar el enlace que contiene. El código del aula aparece al final de la URL (parámetro \"aula\")")
+                        "\nSi el aula donde vas a asistir no está en esta lista, para conocerla puedes escanear el QR de la puerta y observar el enlace que contiene. El código del aula aparece al final de la URL (parámetro \"aula\")\n\nEl formato de las aulas parece seguir el esquema: <CC><P><aula>, donde <CC> es la abreviatura del edificio (AB, TQ, BT), <P> planta, y <aula> el número de aula")
 
 @with_touched_chat
 def handle_chat(bot, update, chat=None):
