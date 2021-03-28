@@ -217,7 +217,7 @@ def cmd_history(bot, update, chat=None):
 
     # get the history of this user and return it
     _classes = list(Room.select().where(Room.tg_chat == chat).order_by(Room.last_time.desc()))
-    bot.reply(update, "Lista de últimas asistencias registradas:\n" + "\n".join(" - {} ({})".format(_class.last_time.strftime('%a %d %b, %Y, %H:%M'), _class.room_name) for _class in _classes))
+    bot.reply(update, "Lista de " + str(MAX_HISTORY) + " últimas asistencias registradas:\n" + "\n".join(" - {} ({})".format(_class.last_time.strftime('%a %d %b, %Y, %H:%M'), _class.room_name) for _class in _classes))
     return
 
 @with_touched_chat
