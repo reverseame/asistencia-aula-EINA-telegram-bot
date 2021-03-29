@@ -311,6 +311,11 @@ def parse_telemetry_message(data):
 
     return "CO_2: {} ({})\nTemperatura: {}ºC\nHumedad: {}".format(co2_value, text_co2, temperature, humidity)
 
+def get_telemetry_HTMLmessage(data) -> str:
+    return "<i>{}</i>\n{}".format(
+                        datetime.now().strftime('%a %d %b, %Y, %H:%M'), 
+                        parse_telemetry_message(telemetry_data))
+
 @with_touched_chat
 def cmd_telemetry(bot, update, args, chat=None):
     if DEBUG_MODE:
@@ -334,9 +339,7 @@ def cmd_telemetry(bot, update, args, chat=None):
         telemetry_data = getTelemetry(token, _dict.get(_class)['asset-id'])
         if telemetry_data is not None:
             # parse the data appropriately
-            bot.reply(update, "<i>{}</i>\n{}".format(
-                        datetime.now().strftime('%a %d %b, %Y, %H:%M'), 
-                        parse_telemetry_message(telemetry_data)), parse_mode=ParseMode.HTML)
+            bot.reply(update, get_telemetry_HTMLmessage(telemetry_data), parse_mode=ParseMode.HTML)
         else:
             bot.reply(update, "Ups :(, algo fue mal recuperando la telemetría de {} ...".format(_class))
     else:
