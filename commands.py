@@ -1,8 +1,11 @@
 import telegram
 import datetime
+from datetime import datetime
+import requests
 
 from models import Subscription, Room
 from util import with_touched_chat, escape_markdown
+from telegram import ParseMode
 
 # for debug mode
 DEBUG_MODE = False
@@ -10,6 +13,16 @@ USERID_CONTROL = [6128221] # Telegram user with privileges
 
 # max of history records to be stored
 MAX_HISTORY = 5
+
+# URL sensorizar UZ
+SENSORIZAR_URL="https://sensorizar.unizar.es:8080/api"
+# Assests file
+ASSETS_FILE="files/assets.csv"
+
+# emojis
+SMILEFACE=u'\U0001F643'
+FEARFACE=u'\U0001F628'
+SKULL=u'\U0001F480'
 
 from classes import CLASS_LIST
 
@@ -63,7 +76,7 @@ def cmd_help(bot, update, chat=None):
             bot.reply(update, random_string())
             return
     bot.reply(update, """
-Hola! Este bot te permite introducir tu asistencia a clase en la EINA en el marco de las medidas Anti-COVID19 de manera automática
+¡Hola! Este bot te permite introducir tu asistencia a clase en la EINA en el marco de las medidas Anti-COVID19 de manera automática
 
 Lista de comandos soportados:
 - /sub - subscribir un nuevo identificador (NIA, o cualquier otro dato que permitan tu identificación personal -- DNI, correo electrónico o número de teléfono)
@@ -73,11 +86,12 @@ Lista de comandos soportados:
 - /assist - asistir a un aula determinada (realiza la petición al formulario web de la EINA)
 - /class - listar los códigos de aulas
 - /history - listar tu histórico (5 últimas) de aulas donde has registrado asistencia
+- /telemetry - consulta el CO_2, temperatura y humedad del aula consultada
 - /source - información del código fuente
 - /legal - muestra el texto legal (cumplimiento RGPD y LO 3/2018)
 - /help - muestra el mensaje de ayuda
 
-Este bot es código abierto (licencia GNU/GPLv3), lee /source para más información!
+Este bot es código abierto (licencia GNU/GPLv3), ¡lee /source para más información!
 """,
                   disable_web_page_preview=True,
                   parse_mode=telegram.ParseMode.MARKDOWN)
@@ -233,8 +247,131 @@ def cmd_source(bot, update, chat=None):
                         "Adaptado por parte del grupo DisCo de la Universidad de Zaragoza, a partir del código original de: "
                     "https://github.com/franciscod/telegram-twitter-forwarder-bot")
 
+_dict = {} # global var
+def loadCSV(filename) -> dict:
+    global _dict
+    data = read_data(filename)
+    _dict = {}
+    for line in data:
+        line = line.split(',')
+        _dict[line[0]] = {'CRE': line[1], 'asset-id': line[2]}
+    return _dict
+
+def read_data(file):
+    with open(file, 'r') as f:
+        return f.read().splitlines()
+
+def getSensorizarPubToken():
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    }
+
+    data = '{"publicId": "4d6266d0-7cc8-11eb-84c3-639131675c2d"}'
+
+    response = requests.post(SENSORIZAR_URL + '/auth/login/public', headers=headers, data=data)
+
+    if response.status_code != 200:
+        return None # XXX control this
+    else:
+        data = response.json()
+        return data['token']
+
+def getTelemetry(token: str, asset: str):
+    headers = {
+        'X-Authorization': "Bearer {}".format(token),
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    }
+
+    params = (
+        ('keys', 'co2,temperature,humidity'),
+    )
+
+    response = requests.get("{}/plugins/telemetry/ASSET/{}/values/timeseries".format(SENSORIZAR_URL, asset), headers=headers, params=params)
+    if response.status_code != 200:
+        return None
+    else:
+        return response.json()
+
+def check_co2_value(value: int) -> str:
+    if value < 700:
+        return "NORMAL " + SMILEFACE
+    elif value < 850:
+        return "<b>¡ALTO!</b> " + FEARFACE
+    else:
+        return "<b>¡MUY ALTO!</b> " + SKULL
+
+def parse_telemetry_message(data):
+    co2_value = data['co2'][0]['value']
+    temperature = data['temperature'][0]['value']
+    humidity = data['humidity'][0]['value']
+
+    text_co2 = check_co2_value(int(co2_value))
+
+    return "CO_2: {} ({})\nTemperatura: {}ºC\nHumedad: {}".format(co2_value, text_co2, temperature, humidity)
+
+@with_touched_chat
+def cmd_telemetry(bot, update, args, chat=None):
+    if DEBUG_MODE:
+        if (chat.chat_id not in USERID_CONTROL):
+            bot.reply(update, random_string())
+            return
+    if len(_dict) == 0: # load CSV, if it has not loaded yet
+        loadCSV(ASSETS_FILE)
+
+    _class = valid_args(bot, update, args)
+    if _class == None:
+        return
+    # if not supported, report the user and ask for future support
+    if _dict.get(_class) == None:
+        bot.reply(update, "La telemetría de este aula todavía no está soportada :(. Contacta con @RicardoJRdez y hazle llegar el aula que quieres consultar para darle soporte. ¡Gracias!")
+        return
+
+    # get public token and telemetry data
+    token = getSensorizarPubToken()
+    if token is not None:
+        telemetry_data = getTelemetry(token, _dict.get(_class)['asset-id'])
+        if telemetry_data is not None:
+            # parse the data appropriately
+            bot.reply(update, "<i>{}</i>\n{}".format(
+                        datetime.now().strftime('%a %d %b, %Y, %H:%M'), 
+                        parse_telemetry_message(telemetry_data)), parse_mode=ParseMode.HTML)
+        else:
+            bot.reply(update, "Ups :(, algo fue mal recuperando la telemetría de {} ...".format(_class))
+    else:
+        bot.reply(update, "Ups :(, algo fue mal intentando recuperar la telemetría de {} ...".format(_class))
+        
+    return
+
+
 import requests
 URL = 'https://eina.unizar.es/asistencia-aula?aula='
+
+@with_touched_chat
+def cmd_assistmonitor(bot, update, args, chat=None):
+    if DEBUG_MODE:
+        if (chat.chat_id not in USERID_CONTROL):
+            bot.reply(update, random_string())
+            return
+
+    return
+
+
+"""
+Check validity of args for /assist, /assistmonitor, and /telemetry
+and return first argument
+"""
+def valid_args(bot, update, args):
+    if ' ' in args or len(args) <= 0:
+        bot.reply(update, "Verifica el aula dada, no debe de ser nula o contener espacios!")
+        return None
+    elif len(args) > 1:
+        bot.reply(update, "Sólo se permite un aula!")
+        return None
+
+    return args[0]
+
 
 @with_touched_chat
 def cmd_assist(bot, update, args, chat=None):
@@ -242,15 +379,10 @@ def cmd_assist(bot, update, args, chat=None):
         if (chat.chat_id not in USERID_CONTROL):
             bot.reply(update, random_string())
             return
-    # check no spaces in args
-    if ' ' in args or len(args) <= 0:
-        bot.reply(update, "Verifica el aula dada, no debe de ser nula o contener espacios!")
-        return
-    elif len(args) > 1:
-        bot.reply(update, "Sólo se permite un aula!")
-        return
 
-    _class = args[0]
+    _class = valid_args(bot, update, args)
+    if _class == None:
+        return
 
     subscriptions = list(Subscription.select().where(Subscription.tg_chat == chat))
 

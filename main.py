@@ -41,6 +41,8 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('history', cmd_history))
     dispatcher.add_handler(CommandHandler('legal', cmd_legal))
     dispatcher.add_handler(CommandHandler('source', cmd_source))
+    dispatcher.add_handler(CommandHandler('assistmonitor', cmd_assistmonitor, pass_args=True))
+    dispatcher.add_handler(CommandHandler('telemetry', cmd_telemetry, pass_args=True))
     dispatcher.add_handler(MessageHandler([Filters.text], handle_chat))
 
     # poll
