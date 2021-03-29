@@ -64,7 +64,7 @@ def cmd_start(bot, update, chat=None):
 
     bot.reply(
             update, """
-Hola! 
+¡Hola! 
 
 Este BOT (no oficial) sirve para facilitar la recogida de asistencia a clase en el marco de las medidas Anti-COVID19 en las aulas de la Escuela de Ingeniería y Arquitectura de la Universidad de Zaragoza. Para usarlo, primero tienes que suscribir tu identificador (o identificadores) que quieres utilizar con el comando /sub. El identificador más habitual es tu NIA o NIP. Después, puedes registrar tu asistencia a un aula determinada mediante el comando /assist CODIGO_CLASE. Para saber el código de la clase, puedes consultar /class. Para más información, consulta /help.
 """ + LEGAL_TEXT)
@@ -86,7 +86,7 @@ Lista de comandos soportados:
 - /assist - asistir a un aula determinada (realiza la petición al formulario web de la EINA)
 - /class - listar los códigos de aulas
 - /history - listar tu histórico (5 últimas) de aulas donde has registrado asistencia
-- /telemetry - consulta el CO_2, temperatura y humedad del aula consultada
+- /telemetry - consulta el CO2, temperatura y humedad del aula consultada
 - /source - información del código fuente
 - /legal - muestra el texto legal (cumplimiento RGPD y LO 3/2018)
 - /help - muestra el mensaje de ayuda
@@ -314,7 +314,7 @@ def parse_telemetry_message(data):
 def get_telemetry_HTMLmessage(data) -> str:
     return "<i>{}</i>\n{}".format(
                         datetime.now().strftime('%a %d %b, %Y, %H:%M'), 
-                        parse_telemetry_message(telemetry_data))
+                        parse_telemetry_message(data))
 
 @with_touched_chat
 def cmd_telemetry(bot, update, args, chat=None):
