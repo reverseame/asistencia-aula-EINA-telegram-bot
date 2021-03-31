@@ -22,7 +22,7 @@ ASSETS_FILE="files/assets.csv"
 # emojis
 SMILEFACE=u'\U0001F643'
 FEARFACE=u'\U0001F628'
-SKULL=u'\U0001F480'
+SKULL=u'\U00002620'
 
 from classes import CLASS_LIST
 
@@ -309,7 +309,7 @@ def parse_telemetry_message(data):
 
     text_co2 = check_co2_value(int(co2_value))
 
-    return "CO_2: {} ({})\nTemperatura: {}ºC\nHumedad: {}".format(co2_value, text_co2, temperature, humidity)
+    return "CO2: {} ({})\nTemperatura: {}ºC\nHumedad: {}".format(co2_value, text_co2, temperature, humidity)
 
 def get_telemetry_HTMLmessage(data) -> str:
     return "<i>{}</i>\n{}".format(
@@ -317,7 +317,7 @@ def get_telemetry_HTMLmessage(data) -> str:
                         parse_telemetry_message(data))
 
 @with_touched_chat
-def cmd_telemetry(bot, update, args, chat=None):
+def cmd_telemetry(bot, update, args, chat=None, already_validated=False):
     if DEBUG_MODE:
         if (chat.chat_id not in USERID_CONTROL):
             bot.reply(update, random_string())
@@ -325,9 +325,14 @@ def cmd_telemetry(bot, update, args, chat=None):
     if len(_dict) == 0: # load CSV, if it has not loaded yet
         loadCSV(ASSETS_FILE)
 
-    _class = valid_args(bot, update, args)
-    if _class == None:
-        return
+    if not already_validated:
+        _class = valid_args(bot, update, args)
+        if _class == None:
+            return
+    else:
+        _class = args
+    # if True, we assume _class is *NOT* None
+
     # if not supported, report the user and ask for future support
     if _dict.get(_class) == None:
         bot.reply(update, "La telemetría de este aula todavía no está soportada :(. Contacta con @RicardoJRdez y hazle llegar el aula que quieres consultar para darle soporte. ¡Gracias!")
@@ -400,7 +405,7 @@ def cmd_assist(bot, update, args, chat=None):
         ordered_rooms = ordered_rooms[0:-(MAX_HISTORY - 1)]
         for _room in ordered_rooms:
             _room.delete_instance() # delete it
-    
+
     # silently insert the new item into the DB
     Room.create(tg_chat = chat, room_name = _class)
 
@@ -425,6 +430,10 @@ def make_new_POST(bot, update, u_id, _class):
             raise Exception("Petición de {} a {} incorrecta!".format(user_id, _class))
 
         bot.reply(update, "Asistencia de \"{}\" a \"{}\" registrada correctamente".format(u_id, _class))
+
+        # send telemtry message too
+        cmd_telemetry(bot, update, _class, already_validated=True)
+
     except Exception as e:
         bot.reply(update, "ERROR! {0}".format(e.args))
 
