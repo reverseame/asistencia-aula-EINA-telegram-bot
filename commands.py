@@ -307,8 +307,11 @@ def parse_telemetry_message(data):
     temperature = data['temperature'][0]['value']
     humidity = data['humidity'][0]['value']
 
-    text_co2 = check_co2_value(int(co2_value))
-
+    if co2_value != None:
+        text_co2 = check_co2_value(int(co2_value))
+    else:
+        text_co2 = SKULL + " SIN DATOS " + SKULL
+        
     return "CO2: {} ({})\nTemperatura: {}ºC\nHumedad: {}".format(co2_value, text_co2, temperature, humidity)
 
 def get_telemetry_HTMLmessage(data) -> str:
