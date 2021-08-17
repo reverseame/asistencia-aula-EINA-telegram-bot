@@ -33,7 +33,7 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('help', cmd_help))
     dispatcher.add_handler(CommandHandler('ping', cmd_ping))
     dispatcher.add_handler(CommandHandler('sub', cmd_sub, pass_args=True))
-    dispatcher.add_handler(CommandHandler('unsub', cmd_unsub, pass_args=True))
+    dispatcher.add_handler(CommandHandler('unsub', cmd_unsub))
     dispatcher.add_handler(CommandHandler('list', cmd_list))
     dispatcher.add_handler(CommandHandler('wipe', cmd_wipe))
     dispatcher.add_handler(CommandHandler('assist', cmd_assist, pass_args=True))
@@ -41,7 +41,6 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('history', cmd_history))
     dispatcher.add_handler(CommandHandler('legal', cmd_legal))
     dispatcher.add_handler(CommandHandler('source', cmd_source))
-    dispatcher.add_handler(CommandHandler('assistmonitor', cmd_assistmonitor, pass_args=True))
     dispatcher.add_handler(CommandHandler('telemetry', cmd_telemetry, pass_args=True))
     dispatcher.add_handler(MessageHandler([Filters.text], handle_chat))
 

@@ -66,7 +66,7 @@ def cmd_start(bot, update, chat=None):
             update, """
 ¡Hola! 
 
-Este BOT (no oficial) sirve para facilitar la recogida de asistencia a clase en el marco de las medidas Anti-COVID19 en las aulas de la Escuela de Ingeniería y Arquitectura de la Universidad de Zaragoza. Para usarlo, primero tienes que suscribir tu identificador (o identificadores) que quieres utilizar con el comando /sub. El identificador más habitual es tu NIA o NIP. Después, puedes registrar tu asistencia a un aula determinada mediante el comando /assist CODIGO_CLASE. Para saber el código de la clase, puedes consultar /class. Para más información, consulta /help.
+Este BOT (no oficial) sirve para facilitar la recogida de asistencia a clase en el marco de las medidas Anti-COVID19 en las aulas de la Escuela de Ingeniería y Arquitectura de la Universidad de Zaragoza. Para usarlo, primero tienes que suscribir el identificador que quieres utilizar con el comando /sub. El identificador más habitual es tu NIA o NIP. Después, puedes registrar tu asistencia a un aula determinada mediante el comando /assist CODIGO_CLASE. Este comando permite un parámetro adicional para indicar durante cuánto tiempo quieres registrar tu asistencia. Por defecto, cada 50 minutos tras mandar el comando "/assist" registrará de forma automática tu asistencia. Para saber el código de la clase, puedes consultar /class. Para más información, consulta /help.
 """ + LEGAL_TEXT)
 
 @with_touched_chat
@@ -79,14 +79,14 @@ def cmd_help(bot, update, chat=None):
 ¡Hola! Este bot te permite introducir tu asistencia a clase en la EINA en el marco de las medidas Anti-COVID19 de manera automática
 
 Lista de comandos soportados:
-- /sub - subscribir un nuevo identificador (NIA, o cualquier otro dato que permitan tu identificación personal -- DNI, correo electrónico o número de teléfono)
-- /unsub - desuscribir un identificador
-- /list  - listar los identificadores actuales
+- /sub ID - subscribir un nuevo identificador ID (NIA, o cualquier otro dato que permitan tu identificación personal -- DNI, correo electrónico o número de teléfono). Sólo se permite un ID por usuario. Cada llamada a este comando sustituye el identificador anterior
+- /unsub - desuscribir el identificador asociado a tu usuario 
+- /list  - listar tu ID actual
 - /wipe - eliminar toda tu información (incluidos identificadores definidos) almacenada en el servidor
-- /assist - asistir a un aula determinada (realiza la petición al formulario web de la EINA)
+- /assist AULA [TIEMPO] - asistir a una AULA determinada durante TIEMPO minutos (realiza la petición al formulario web de la EINA cada 50 minutos, si TIEMPO >= 50)
 - /class - listar los códigos de aulas
 - /history - listar tu histórico (5 últimas) de aulas donde has registrado asistencia
-- /telemetry - consulta el CO2, temperatura y humedad del aula consultada
+- /telemetry AULA [TIEMPO] - consulta el CO2, temperatura y humedad de la AULA consultada durante TIEMPO minutos. Si TIEMPO<0, finaliza la monitorización continua
 - /source - información del código fuente
 - /legal - muestra el texto legal (cumplimiento RGPD y LO 3/2018)
 - /help - muestra el mensaje de ayuda
@@ -96,6 +96,15 @@ Este bot es código abierto (licencia GNU/GPLv3), ¡lee /source para más inform
                   disable_web_page_preview=True,
                   parse_mode=telegram.ParseMode.MARKDOWN)
 
+def delete_subscription(chat):
+    try:
+        query = Subscription.get(Subscription.tg_chat == chat)
+        if query is not None:
+            query.delete_instance()
+            return query.u_id
+
+    except Subscription.DoesNotExist:
+        return None
 
 @with_touched_chat
 def cmd_sub(bot, update, args, chat=None):
@@ -105,82 +114,40 @@ def cmd_sub(bot, update, args, chat=None):
             bot.reply(update, random_string())
             return
 
-    if len(args) < 1:
-        bot.reply(update, "Uso: /sub identificador1 identificador2 identificador3 ...")
+    if len(args) < 1 or len(args) > 1:
+        bot.reply(update, "Uso: /sub identificador ...")
         return
-    user_ids = args
-    not_found = []
-    already_subscribed = []
-    successfully_subscribed = []
+    user_id = args[0]
 
-    for user_id in user_ids:
-        if Subscription.select().where(
-                Subscription.u_id == user_id,
-                Subscription.tg_chat == chat).count() == 1:
-            already_subscribed.append(user_id)
-            continue
-
-        Subscription.create(tg_chat=chat, u_id=user_id)
-        successfully_subscribed.append(user_id)
+    already_subscribed = delete_subscription(chat)
+    Subscription.create(tg_chat=chat, u_id=user_id)
 
     reply = ""
-    if len(already_subscribed) is not 0:
-        reply += "Identificador {} ya definido\n\n".format(
-                     ", ".join(already_subscribed)
-                 )
+    if already_subscribed is not None:
+        reply += "Identificador eliminado: {}\n\n".format(already_subscribed)
 
-    if len(successfully_subscribed) is not 0:
-
-        reply += "Identificador añadido: {}".format(
-                     ", ".join(successfully_subscribed)
-                 )
+    reply += "Identificador añadido: {}".format(user_id)
 
     bot.reply(update, reply)
-
+    return
 
 @with_touched_chat
-def cmd_unsub(bot, update, args, chat=None):
+def cmd_unsub(bot, update, chat=None):
     
     if DEBUG_MODE:
         if (chat.chat_id not in USERID_CONTROL):
             bot.reply(update, random_string())
             return
 
-    if len(args) < 1:
-        bot.reply(update, "Uso: /unsub identificador1 identificador2 identificador3 ...")
-        return
-    
-    user_ids= args
-    not_found = []
-    successfully_unsubscribed = []
-
-    for user_id in user_ids:
-        if Subscription.select().where(
-                Subscription.u_id == user_id,
-                Subscription.tg_chat == chat).count() == 0:
-            not_found.append(user_id)
-            continue
-
-        Subscription.delete().where(
-            Subscription.u_id == user_id,
-            Subscription.tg_chat == chat).execute()
-
-        successfully_unsubscribed.append(user_id)
-
+    u_id = delete_subscription(chat)
     reply = ""
-
-    if len(not_found) is not 0:
-        reply += "Mmm no encuentro ningún identificador {}\n\n".format(
-                     ", ".join(not_found)
-                 )
-
-    if len(successfully_unsubscribed) is not 0:
-        reply += "Identificador {} eliminado".format(
-                     ", ".join(successfully_unsubscribed)
-        )
+    if u_id is None:
+        reply += "Mmm no encuentro ningún identificador definido para tu usuario :/"
+    else:
+        reply += "Identificador {} eliminado".format(u_id)
 
     bot.reply(update, reply)
-
+    return
 
 @with_touched_chat
 def cmd_list(bot, update, chat=None):
@@ -197,8 +164,8 @@ def cmd_list(bot, update, chat=None):
 
     bot.reply(
         update,
-        "Tienes definidos los siguientes identificadores:\n" +
-        "\n - ".join((s.u_id for s in subscriptions)) + "\n\nPuedes eliminar cualquiera de ellos con /unsub identificador")
+        "Tienes definido el siguiente identificador:\n" +
+        "\n - ".join((s.u_id for s in subscriptions)) + "\n\nPuedes eliminarlo con /unsub o sustituirlo con /sub nuevo_identificador")
 
 
 @with_touched_chat
@@ -329,7 +296,7 @@ def cmd_telemetry(bot, update, args, chat=None, already_validated=False):
         loadCSV(ASSETS_FILE)
 
     if not already_validated:
-        _class = valid_args(bot, update, args)
+        _class, _time = valid_args(bot, update, args)
         if _class == None:
             return
     else:
@@ -358,30 +325,19 @@ def cmd_telemetry(bot, update, args, chat=None, already_validated=False):
 
 import requests
 URL = 'https://eina.unizar.es/asistencia-aula?aula='
-
-@with_touched_chat
-def cmd_assistmonitor(bot, update, args, chat=None):
-    if DEBUG_MODE:
-        if (chat.chat_id not in USERID_CONTROL):
-            bot.reply(update, random_string())
-            return
-
-    return
-
-
 """
-Check validity of args for /assist, /assistmonitor, and /telemetry
-and return first argument
+Check validity of args for /assist and /telemetry
+and return first argument (mandatory) and second argument (optional)
 """
 def valid_args(bot, update, args):
     if ' ' in args or len(args) <= 0:
         bot.reply(update, "Verifica el aula dada, no debe de ser nula o contener espacios!")
         return None
-    elif len(args) > 1:
-        bot.reply(update, "Sólo se permite un aula!")
+    elif len(args) > 2:
+        bot.reply(update, "Estos comandos sólo reciben dos parámetros, AULA [TIEMPO]!")
         return None
 
-    return args[0]
+    return args[0], args[1]
 
 
 @with_touched_chat
@@ -391,7 +347,7 @@ def cmd_assist(bot, update, args, chat=None):
             bot.reply(update, random_string())
             return
 
-    _class = valid_args(bot, update, args)
+    _class, _time = valid_args(bot, update, args)
     if _class == None:
         return
 
