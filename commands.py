@@ -83,10 +83,10 @@ Lista de comandos soportados:
 - /unsub - desuscribir el identificador asociado a tu usuario 
 - /list  - listar tu ID actual
 - /wipe - eliminar toda tu información (incluidos identificadores definidos) almacenada en el servidor
-- /assist AULA [TIEMPO] - asistir a una AULA determinada durante TIEMPO minutos (realiza la petición al formulario web de la EINA cada 50 minutos, si TIEMPO >= 50)
+- /assist AULA [TIEMPO=50] - asistir a una AULA determinada durante TIEMPO minutos (realiza la petición al formulario web de la EINA cada 50 minutos, si TIEMPO >= 50)
 - /class - listar los códigos de aulas
 - /history - listar tu histórico (5 últimas) de aulas donde has registrado asistencia
-- /telemetry AULA [TIEMPO] - consulta el CO2, temperatura y humedad de la AULA consultada durante TIEMPO minutos. Si TIEMPO<0, finaliza la monitorización continua
+- /telemetry AULA [TIEMPO=50] - consulta el CO2, temperatura y humedad de la AULA consultada durante TIEMPO minutos. Si TIEMPO<0, finaliza la monitorización continua
 - /source - información del código fuente
 - /legal - muestra el texto legal (cumplimiento RGPD y LO 3/2018)
 - /help - muestra el mensaje de ayuda
@@ -330,11 +330,11 @@ Check validity of args for /assist and /telemetry
 and return first argument (mandatory) and second argument (optional)
 """
 def valid_args(bot, update, args):
-    if ' ' in args or len(args) <= 0:
-        bot.reply(update, "Verifica el aula dada, no debe de ser nula o contener espacios!")
+    if len(args) <= 0:
+        bot.reply(update, "Verifica el aula dada, no debe de ser nula!")
         return None
     elif len(args) > 2:
-        bot.reply(update, "Estos comandos sólo reciben dos parámetros, AULA [TIEMPO]!")
+        bot.reply(update, "Este comando sólo recibe dos parámetros: AULA [TIEMPO=50]")
         return None
 
     return args[0], args[1]
