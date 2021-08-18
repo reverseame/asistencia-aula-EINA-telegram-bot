@@ -1,6 +1,6 @@
 import telegram
 import datetime
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 
 from models import Subscription, Room
@@ -13,6 +13,7 @@ USERID_CONTROL = [6128221] # Telegram user with privileges
 
 # max of history records to be stored
 MAX_HISTORY = 5
+DEFAULT_TIME = 50 # in minutes
 
 # URL sensorizar UZ
 SENSORIZAR_URL="https://sensorizar.unizar.es:8080/api"
@@ -23,7 +24,7 @@ ASSETS_FILE="files/assets.csv"
 SMILEFACE=u'\U0001F643'
 FEARFACE=u'\U0001F628'
 SKULL=u'\U00002620'
-
+SCHOOL=u'\U0001F3EB'
 from classes import CLASS_LIST
 
 import random
@@ -35,6 +36,24 @@ def random_string():
 
 def cmd_ping(bot, update):
     bot.reply(update, 'Pong!')
+
+HELP_TEXT="""¡Hola! Este bot te permite introducir tu asistencia a clase en la EINA en el marco de las medidas Anti-COVID19 de manera automática
+
+Lista de comandos soportados:
+- /sub ID - subscribir un nuevo identificador ID (NIA, o cualquier otro dato que permitan tu identificación personal -- DNI, correo electrónico o número de teléfono). Sólo se permite un ID por usuario. Cada llamada a este comando sustituye el identificador anterior
+- /unsub - desuscribir el identificador asociado a tu usuario 
+- /list  - listar tu ID actual
+- /wipe - eliminar toda tu información (incluidos identificadores definidos) almacenada en el servidor
+- /assist AULA [TIEMPO] - asistir a una AULA determinada durante TIEMPO minutos (realiza la petición al formulario web de la EINA cada {0} minutos, si TIEMPO >= {0}). Valor por defecto TIEMPO={0}
+- /class - listar los códigos de aulas
+- /history - listar tu histórico (5 últimas) de aulas donde has registrado asistencia
+- /telemetry AULA [TIEMPO] - consulta el CO2, temperatura y humedad de la AULA consultada durante TIEMPO minutos. Si TIEMPO<0, finaliza la monitorización continua. Valor por defecto TIEMPO={0}
+- /source - información del código fuente
+- /legal - muestra el texto legal (cumplimiento RGPD y LO 3/2018)
+- /help - muestra el mensaje de ayuda
+
+Este bot es código abierto (licencia GNU/GPLv3), ¡lee /source para más información!
+""".format(DEFAULT_TIME)
 
 LEGAL_TEXT="""
 TEXTO LEGAL (cumplimiento RGPD y LO 3/2018)
@@ -75,24 +94,7 @@ def cmd_help(bot, update, chat=None):
         if (chat.chat_id not in USERID_CONTROL):
             bot.reply(update, random_string())
             return
-    bot.reply(update, """
-¡Hola! Este bot te permite introducir tu asistencia a clase en la EINA en el marco de las medidas Anti-COVID19 de manera automática
-
-Lista de comandos soportados:
-- /sub ID - subscribir un nuevo identificador ID (NIA, o cualquier otro dato que permitan tu identificación personal -- DNI, correo electrónico o número de teléfono). Sólo se permite un ID por usuario. Cada llamada a este comando sustituye el identificador anterior
-- /unsub - desuscribir el identificador asociado a tu usuario 
-- /list  - listar tu ID actual
-- /wipe - eliminar toda tu información (incluidos identificadores definidos) almacenada en el servidor
-- /assist AULA [TIEMPO=50] - asistir a una AULA determinada durante TIEMPO minutos (realiza la petición al formulario web de la EINA cada 50 minutos, si TIEMPO >= 50)
-- /class - listar los códigos de aulas
-- /history - listar tu histórico (5 últimas) de aulas donde has registrado asistencia
-- /telemetry AULA [TIEMPO=50] - consulta el CO2, temperatura y humedad de la AULA consultada durante TIEMPO minutos. Si TIEMPO<0, finaliza la monitorización continua
-- /source - información del código fuente
-- /legal - muestra el texto legal (cumplimiento RGPD y LO 3/2018)
-- /help - muestra el mensaje de ayuda
-
-Este bot es código abierto (licencia GNU/GPLv3), ¡lee /source para más información!
-""",
+    bot.reply(update, HELP_TEXT,
                   disable_web_page_preview=True,
                   parse_mode=telegram.ParseMode.MARKDOWN)
 
@@ -178,10 +180,10 @@ def cmd_wipe(bot, update, chat=None):
     subscriptions = list(Subscription.select().where(
                          Subscription.tg_chat == chat))
 
-    subs = "Has eliminado todos tus identificadores."
+    subs = "Has eliminado tu identificador."
     if subscriptions:
         subs = ''.join([
-            "Concretamente, se han eliminado tus siguientes identificadores: ",
+            "Concretamente, se ha eliminado tu identificador: ",
             ', '.join((s.u_id for s in subscriptions)),
             '.'])
 
@@ -198,7 +200,7 @@ def cmd_history(bot, update, chat=None):
 
     # get the history of this user and return it
     _classes = list(Room.select().where(Room.tg_chat == chat).order_by(Room.last_time.desc()))
-    bot.reply(update, "Lista de " + str(MAX_HISTORY) + " últimas asistencias registradas:\n" + "\n".join(" - {} ({})".format(_class.last_time.strftime('%a %d %b, %Y, %H:%M'), _class.room_name) for _class in _classes))
+    bot.reply(update, "Lista de " + str(MAX_HISTORY) + " últimas asistencias registradas:\n" + "\n".join(" - {} ({}{})".format(_class.last_time.strftime('%a %d %b, %Y, %H:%M'), _class.room_name, " " + SCHOOL if  _class.still_in_room else "") for _class in _classes))
     return
 
 @with_touched_chat
@@ -332,12 +334,14 @@ and return first argument (mandatory) and second argument (optional)
 def valid_args(bot, update, args):
     if len(args) <= 0:
         bot.reply(update, "Verifica el aula dada, no debe de ser nula!")
-        return None
+        return None, None
     elif len(args) > 2:
-        bot.reply(update, "Este comando sólo recibe dos parámetros: AULA [TIEMPO=50]")
-        return None
+        bot.reply(update, "Este comando sólo recibe dos parámetros: AULA [TIEMPO]")
+        return None, None
+    elif len(args) == 1:
+        return args[0], DEFAULT_TIME
 
-    return args[0], args[1]
+    return args[0], int(args[1])
 
 
 @with_touched_chat
@@ -357,27 +361,74 @@ def cmd_assist(bot, update, args, chat=None):
         bot.reply(update, "Antes de usar este comando, tienes que definir algún identificador!")
         return
    
-    # store the class passed as argument, if not repeated
-    if Room.select().where(Room.tg_chat == chat).count() >= MAX_HISTORY:
-        ordered_rooms = list(Room.select().where(Room.tg_chat == chat).order_by(Room.last_time.asc()))
+    # check if we need to stop assistance thread, if any
+    if _time < 0:
+        try:
+            query = list(Room.select().where(Room.tg_chat == chat, Room.room_name == _class).order_by(Room.last_time.desc()))
+            query[0].still_in_room = False
+            query[0].save()
+            _str =  "Registro automático de asistencia en clase {} finalizado".format(_class)
+        except:
+            _str = "Vaya! No he encontrado ninguna clase {} con asistencia previa registrada :(".format(_class)
+        
+        bot.reply(update, _str)
+        return
+    
+    ordered_rooms = list(Room.select().where(Room.tg_chat == chat, Room.room_name == _class).order_by(Room.last_time.asc()))
+    # check if the user is already in the _class
+    if len(ordered_rooms) >= 1:
+        last_room = ordered_rooms[-1]
+        next_ts = last_room.last_time + timedelta(minutes=DEFAULT_TIME)
+        present_ts = datetime.now()
+        if present_ts < next_ts:
+            # cannot assist more than once to _class in < DEFAULT_TIME!
+            bot.reply(update, "Vaya! No puedes registrar la asistencia al mismo aula en menos de {} minutos! Podrás hacerlo a las {}".format(DEFAULT_TIME, next_ts.strftime("%H:%M:%S")))
+            return
+
+    # check if we need to delete the oldest room 
+    ordered_rooms = list(Room.select().where(Room.tg_chat == chat).order_by(Room.last_time.asc()))
+    if len(ordered_rooms) >= MAX_HISTORY:
         # get oldest items, leaving newest (MAX_HISTORY - 1) items
         ordered_rooms = ordered_rooms[0:-(MAX_HISTORY - 1)]
         for _room in ordered_rooms:
             _room.delete_instance() # delete it
 
     # silently insert the new item into the DB
-    Room.create(tg_chat = chat, room_name = _class)
-
+    new_room = Room.create(tg_chat = chat, room_name = _class)
     for subs in subscriptions:
         # create thread to handle the new POST request
         try:
-            thread = threading.Thread(target=make_new_POST, args=(bot, update, subs.u_id, _class, ))
+            thread = threading.Thread(target=register_assistance, args=(bot, update, new_room.id, subs.u_id, _class, _time))
             thread.start()
         except:
             bot.reply(update, "Error intentando crear un hilo para la asistencia de \"{}\" :(".format(subs))
 
 import threading
 import time
+def register_assistance(bot, update, room_id, u_id, _class, _time):
+    still_in_room = True
+    room = None
+    end_ts = datetime.now() + timedelta(minutes=_time)
+    while still_in_room and (abs(datetime.now() - end_ts) > timedelta(seconds=1)):
+        next_ts = datetime.now() + timedelta(minutes=DEFAULT_TIME)
+        make_new_POST(bot, update, u_id, _class)
+        if (abs(end_ts - next_ts) >= timedelta(minutes=DEFAULT_TIME)):
+            bot.reply(update, "Próximo registro a las {} ...".format(next_ts.strftime("%H:%M")))
+            time.sleep(DEFAULT_TIME*60) # sleep in seconds
+        else:
+            end_ts = datetime.now()
+
+        room = Room.get(Room.id == room_id)
+        still_in_room = room.still_in_room
+        
+    if still_in_room:
+        # update the still_in_room field
+        room.still_in_room = False
+        room.save()
+        bot.reply(update, "Registro periódico de asistencia a clase {} finalizado".format(_class))
+    
+    return
+
 def make_new_POST(bot, update, u_id, _class):
     try:
         # sleep for a random time first

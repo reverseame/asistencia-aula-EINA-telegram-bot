@@ -27,6 +27,7 @@ class Room(Model):
     tg_chat = ForeignKeyField(TelegramChat, related_name="rooms")
     room_name = TextField()
     last_time = DateTimeField(default=datetime.datetime.now)
+    still_in_room = BooleanField(default=True)
 
 # Create tables
 for t in (TelegramChat, Subscription, Room):
