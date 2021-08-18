@@ -11,9 +11,12 @@ from telegram import ParseMode
 DEBUG_MODE = False
 USERID_CONTROL = [6128221] # Telegram user with privileges
 
-# max of history records to be stored
-MAX_HISTORY = 5
-DEFAULT_TIME = 50 # in minutes
+MAX_HISTORY = 5             # max of history records to be stored
+DEFAULT_TIME = 50           # in minutes, default time to register assistance to a class
+NORMAL_MONITOR_TIME = 5     # in minutes, default time for monitoring under normal conditions
+CRITICAL_MONITOR_TIME = 1   # in minutes, default time for monitoring under critical conditions (high CO2 levels)
+NORMAL_CO2  = 700
+HIGH_CO2    = 850
 
 # URL sensorizar UZ
 SENSORIZAR_URL="https://sensorizar.unizar.es:8080/api"
@@ -44,7 +47,7 @@ Lista de comandos soportados:
 - /unsub - desuscribir el identificador asociado a tu usuario 
 - /list  - listar tu ID actual
 - /wipe - eliminar toda tu información (incluidos identificadores definidos) almacenada en el servidor
-- /assist AULA [TIEMPO] - asistir a una AULA determinada durante TIEMPO minutos (realiza la petición al formulario web de la EINA cada {0} minutos, si TIEMPO >= {0}). Valor por defecto TIEMPO={0}
+- /assist AULA [TIEMPO] - asistir a una AULA determinada durante TIEMPO minutos (realiza la petición al formulario web de la EINA en intervalos de {0} minutos, si TIEMPO >= {0}). Valor por defecto TIEMPO={0}. Monitoriza también el CO2 del aula, avisando cada {1} minutos si el nivel es crítico (valor de CO2 >= 850). Si TIEMPO < 0, para la monitorización y registro continuada
 - /class - listar los códigos de aulas
 - /history - listar tu histórico (5 últimas) de aulas donde has registrado asistencia
 - /telemetry AULA [TIEMPO] - consulta el CO2, temperatura y humedad de la AULA consultada durante TIEMPO minutos. Si TIEMPO<0, finaliza la monitorización continua. Valor por defecto TIEMPO={0}
@@ -53,7 +56,7 @@ Lista de comandos soportados:
 - /help - muestra el mensaje de ayuda
 
 Este bot es código abierto (licencia GNU/GPLv3), ¡lee /source para más información!
-""".format(DEFAULT_TIME)
+""".format(DEFAULT_TIME, CRITICAL_MONITOR_TIME)
 
 LEGAL_TEXT="""
 TEXTO LEGAL (cumplimiento RGPD y LO 3/2018)
@@ -210,7 +213,7 @@ def cmd_source(bot, update, chat=None):
             bot.reply(update, random_string())
             return
 
-    bot.reply(update, "Este bot es Software Libre bajo licencia GPLv3. "
+    bot.reply(update, "Este bot es Software Libre bajo licencia GNU/GPLv3. "
                         "Código disponible en: "
                         "https://github.com/reverseame/asistencia-aula-EINA-telegram-bot\n"
                         "Adaptado por parte del grupo DisCo de la Universidad de Zaragoza, a partir del código original de: "
@@ -264,27 +267,33 @@ def getTelemetry(token: str, asset: str):
         return response.json()
 
 def check_co2_value(value: int) -> str:
-    if value < 700:
+    if value < NORMAL_CO2:
         return "NORMAL " + SMILEFACE
-    elif value < 850:
+    elif value < HIGH_CO2:
         return "<b>¡ALTO!</b> " + FEARFACE
     else:
         return "<b>¡MUY ALTO!</b> " + SKULL
 
-def parse_telemetry_message(data):
+def get_telemetry_values(data):
     co2_value = data['co2'][0]['value']
     temperature = data['temperature'][0]['value']
     humidity = data['humidity'][0]['value']
+
+    return co2_value, temperature, humidity
+
+def parse_telemetry_message(data):
+    co2_value, temperature, humidity = get_telemetry_values(data)
 
     if co2_value != None:
         text_co2 = check_co2_value(int(co2_value))
     else:
         text_co2 = SKULL + " SIN DATOS " + SKULL
         
-    return "CO2: {} ({})\nTemperatura: {}ºC\nHumedad: {}".format(co2_value, text_co2, temperature, humidity)
+    return "CO2: {} ppm ({})\nTemperatura: {}ºC\nHumedad: {}%".format(co2_value, text_co2, temperature, humidity)
 
-def get_telemetry_HTMLmessage(data) -> str:
-    return "<i>{}</i>\n{}".format(
+def get_telemetry_HTMLmessage(data, room_name) -> str:
+    return "<b>Aula {}</b> - <i>{}</i>\n{}".format(
+                        room_name,
                         datetime.now().strftime('%a %d %b, %Y, %H:%M'), 
                         parse_telemetry_message(data))
 
@@ -294,29 +303,36 @@ def cmd_telemetry(bot, update, args, chat=None, already_validated=False):
         if (chat.chat_id not in USERID_CONTROL):
             bot.reply(update, random_string())
             return
-    if len(_dict) == 0: # load CSV, if it has not loaded yet
-        loadCSV(ASSETS_FILE)
 
     if not already_validated:
         _class, _time = valid_args(bot, update, args)
         if _class == None:
             return
     else:
-        _class = args
+        _class = args 
     # if True, we assume _class is *NOT* None
+
+    reply_telemetry(bot, update, _class)
+
+def reply_telemetry(bot, update, _class, reply_to_user=True):
+    if len(_dict) == 0: # load CSV, if it has not loaded yet
+        loadCSV(ASSETS_FILE)
 
     # if not supported, report the user and ask for future support
     if _dict.get(_class) == None:
         bot.reply(update, "La telemetría de este aula todavía no está soportada :(. Contacta con @RicardoJRdez y hazle llegar el aula que quieres consultar para darle soporte. ¡Gracias!")
         return
-
+    
     # get public token and telemetry data
     token = getSensorizarPubToken()
     if token is not None:
         telemetry_data = getTelemetry(token, _dict.get(_class)['asset-id'])
         if telemetry_data is not None:
             # parse the data appropriately
-            bot.reply(update, get_telemetry_HTMLmessage(telemetry_data), parse_mode=ParseMode.HTML)
+            if reply_to_user:
+                bot.reply(update, get_telemetry_HTMLmessage(telemetry_data, _class), parse_mode=ParseMode.HTML)
+            else:
+                return telemetry_data
         else:
             bot.reply(update, "Ups :(, algo fue mal recuperando la telemetría de {} ...".format(_class))
     else:
@@ -367,7 +383,7 @@ def cmd_assist(bot, update, args, chat=None):
             query = list(Room.select().where(Room.tg_chat == chat, Room.room_name == _class).order_by(Room.last_time.desc()))
             query[0].still_in_room = False
             query[0].save()
-            _str =  "Registro automático de asistencia en clase {} finalizado".format(_class)
+            _str =  "Registro automático de asistencia y monitorización de clase {} finalizados".format(_class)
         except:
             _str = "Vaya! No he encontrado ninguna clase {} con asistencia previa registrada :(".format(_class)
         
@@ -396,27 +412,57 @@ def cmd_assist(bot, update, args, chat=None):
     # silently insert the new item into the DB
     new_room = Room.create(tg_chat = chat, room_name = _class)
     for subs in subscriptions:
-        # create thread to handle the new POST request
+        # create threads to handle the POST requests and continuous monitoring
         try:
             thread = threading.Thread(target=register_assistance, args=(bot, update, new_room.id, subs.u_id, _class, _time))
+            thread.start()
+            thread = threading.Thread(target=continuous_monitoring, args=(bot, update, new_room.id, _class, _time))
             thread.start()
         except:
             bot.reply(update, "Error intentando crear un hilo para la asistencia de \"{}\" :(".format(subs))
 
 import threading
 import time
+def continuous_monitoring(bot, update, room_id, _class, _time):
+    still_in_room = True
+    room = None
+    sleep_time = NORMAL_MONITOR_TIME
+    end_ts = datetime.now() + timedelta(minutes=_time)
+    bot.reply(update, "Iniciando monitorización continua cada {} minutos ...".format(sleep_time))
+    while still_in_room and (end_ts - datetime.now()) > timedelta(seconds=1):
+        # get current telemetry 
+        telemetry_data = reply_telemetry(bot, update, _class, reply_to_user=False) 
+        current_co2, _, _ = get_telemetry_values(telemetry_data)
+        # if CO2 is too high, send message to the user RIGHT NOW and change monitor time
+        if int(current_co2) >= HIGH_CO2:
+            bot.reply(update, get_telemetry_HTMLmessage(telemetry_data, _class), parse_mode=ParseMode.HTML)
+
+            if sleep_time == NORMAL_MONITOR_TIME:
+                bot.reply(update, "Cambiando monitorización continua a nivel crítico ({} minuto) ...".format(CRITICAL_MONITOR_TIME))
+            sleep_time = CRITICAL_MONITOR_TIME
+        else:
+            sleep_time = NORMAL_MONITOR_TIME
+        
+        time.sleep(sleep_time*60)
+
+        room = Room.get(Room.id == room_id)
+        still_in_room = room.still_in_room
+        
+    return
+
 def register_assistance(bot, update, room_id, u_id, _class, _time):
     still_in_room = True
     room = None
     end_ts = datetime.now() + timedelta(minutes=_time)
-    while still_in_room and (abs(datetime.now() - end_ts) > timedelta(seconds=1)):
-        next_ts = datetime.now() + timedelta(minutes=DEFAULT_TIME)
+    while still_in_room and (end_ts - datetime.now()) > timedelta(seconds=1):
         make_new_POST(bot, update, u_id, _class)
-        if (abs(end_ts - next_ts) >= timedelta(minutes=DEFAULT_TIME)):
+        if _time > DEFAULT_TIME:
+            next_ts = datetime.now() + timedelta(minutes=DEFAULT_TIME)
             bot.reply(update, "Próximo registro a las {} ...".format(next_ts.strftime("%H:%M")))
-            time.sleep(DEFAULT_TIME*60) # sleep in seconds
+            _time -= DEFAULT_TIME
         else:
             end_ts = datetime.now()
+        time.sleep(DEFAULT_TIME*60) # sleep in seconds
 
         room = Room.get(Room.id == room_id)
         still_in_room = room.still_in_room
@@ -425,7 +471,6 @@ def register_assistance(bot, update, room_id, u_id, _class, _time):
         # update the still_in_room field
         room.still_in_room = False
         room.save()
-        bot.reply(update, "Registro periódico de asistencia a clase {} finalizado".format(_class))
     
     return
 
@@ -436,6 +481,7 @@ def make_new_POST(bot, update, u_id, _class):
         bot.reply(update, "Durmiendo {} segundos (registro de \"{}\" en \"{}\") ...".format(sleeptime, u_id, _class))
         time.sleep(sleeptime)
         _return = make_request(u_id, _class)
+        # XXX not nice, but this website is out of my control :(
         if not "Gracias por tu colaboración" in _return.text:
             raise Exception("Petición de {} a {} incorrecta!".format(user_id, _class))
 
